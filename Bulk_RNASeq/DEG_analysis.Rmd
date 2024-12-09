@@ -1,0 +1,163 @@
+---
+title: "DEG_analysis"
+output: html_document
+author: "Hassan Saei"
+Contact: "hassan.saeiahan@gmail.com"
+date: "2024-12-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Visualization of DEGs obtained form comparing kidney organoid cultured for prolonged period (early, mid and late time points)
+
+We developed kidney organoids from male hiPSCs using Morizane et al. protocol () with some modifications. Most of the analysis on kidney organoids were performed short after the last day of differentiation (day 21). Less is known about the gene expression dynamics over prolonged culture. We harvested 3D kidney organoids at day 21 (early), mid (day 32), and late (day 42) time poinst and extracted total RNA and performed bulk RNA sequencing using Illumnia Novaseq 6000. 
+
+# Install packages
+
+```{r Install-packages, echo=FALSE}
+#BiocManager::install("clusterProfiler")
+```
+
+## Loading libraries
+
+```{r loading-packages, echo=FALSE, results='hide'}
+rm(list=ls())
+library(limma)
+library(edgeR)
+library(DESeq2)
+library(ggplot2)
+library(EnsDb.Hsapiens.v86)
+library(dplyr)
+library(radiant)
+library(EnhancedVolcano)
+library(tidyverse)
+library(clusterProfiler)
+library(RColorBrewer)
+library(ggrepel)
+library(ggplot2)
+library("readxl")
+```
+
+## Converting ENSG IDs to gene symbol
+
+```{r Converting ENSG to gene symbol, results='hide'}
+
+#str(EnsDb.Hsapiens.v86)
+#columns(EnsDb.Hsapiens.v86)
+#keys(EnsDb.Hsapiens.v86)
+ens2sym <- AnnotationDbi::select(EnsDb.Hsapiens.v86, keys = keys(EnsDb.Hsapiens.v86),
+                                 columns = c("SYMBOL"))
+ens2sym_entrez <- AnnotationDbi::select(EnsDb.Hsapiens.v86, keys = keys(EnsDb.Hsapiens.v86), columns = c("SYMBOL"))
+
+```
+
+# Reading differentially expressed genes from .txt files
+
+- DEGs obtained from comparing day 32 versus day 22 organoids
+- DEGs obtained from comparing day 42 versus day 22 organoids
+- NABA_MATRISOME file contains genes encoding matrix and matrix associated proteins
+
+```{r reading DEGs from a file}
+
+DEG_mid <- read.table("Listes_Res_MultiTests/(d32)_vs_(d22)_f1.2_(7369).txt", sep = "\t", header = T)
+DEG_late <- read.table("Listes_Res_MultiTests/(d42)_vs_(d22)_f1.2_(11925).txt", sep = "\t", header = T)
+NABA <- read.table("Listes_Res_MultiTests/NABA_MATRISOME.v2023.2.txt", sep = "\t", header = T)
+
+```
+
+# Anntating genes and keeping shared genes between three statistical methods (DESeq2, edgeR and limma-voom)
+
+```{r preprocessing the DEGs}
+
+process_dataframe <- function(df, naba_df) {
+  df <- df %>%
+    mutate(Category = ifelse(Symbol %in% naba_df$Symbol, "Matrix", "No"))
+  
+  df <- with(df, df[!(pval_edgeR == "" | is.na(pval_edgeR)), ])
+  df <- with(df, df[!(pval_Voom == "" | is.na(pval_Voom)), ])
+  df <- with(df, df[!(pval_DEseq2 == "" | is.na(pval_DEseq2)), ])
+  
+  return(df)
+}
+
+DEG_mid <- process_dataframe(DEG_mid, NABA)
+DEG_late <- process_dataframe(DEG_late, NABA)
+
+```
+
+# Venndiagram for shared matrisom endcoding genes
+
+```{r venndiagram for matrix genes, fig.width=3, fig.height=1.5}
+library("ggVennDiagram")
+
+matrix_mid <- DEG_mid$Category == "Matrix"
+matrix_late <- DEG_late$Category == "Matrix"
+
+genes_mid <- DEG_mid %>%
+  filter(matrix_mid) %>%
+  pull(Symbol)
+
+genes_late <- DEG_late %>%
+  filter(matrix_late) %>%
+  pull(Symbol)
+
+
+list <- list(genes_mid, genes_late)
+ggVennDiagram(list, label_alpha = 0, label_size = 3,
+              category.names = c("Mid", "Late")) + ggplot2::scale_fill_gradient(low="blue",high = "yellow") + ggplot2::coord_flip()
+
+```
+
+# Save the plot in the .png format
+
+```{r save venndiagram}
+png(filename = "Venn.png", width = 150, height = 100, res = 300, units = "mm")
+plot(p)
+dev.off()
+```
+
+# Extract common DEGs between mid and early comparison
+
+```{r extract common genes between late and mid comparison}
+
+common_genes <- intersect(genes_mid, genes_late)
+
+DEG_mid <- DEG_mid %>%
+  mutate(Common = ifelse(Symbol %in% common_genes, "Common", "Unique"))
+
+DEG_late <- DEG_late %>%
+  mutate(Common = ifelse(Symbol %in% common_genes, "Common", "Unique"))
+
+# save common genes
+
+write.table(common_genes, file = "Common_genes_early_vs_late.txt", row.names = F, col.names = 'Common_DEGs')
+
+```
+
+#
+
+```{r }
+
+# Create the DESeq object
+sampleTable <- read.table("0_NGS2024_7984/Data/DataCount.txt", header = T)
+
+# MDS plot
+sampleTable <- read.table("../0_NGS2024_7984/DataNorm/DataNormDESeq2.txt", header = T)
+sampleTable <- sampleTable[,c(1:9)]
+group <- factor(c(rep("d22", 3), rep("d32", 3), rep("d42", 3)))
+colors <- c("darkred", "darkblue", "darkgreen")[group]
+limma::plotMDS(sampleTable, col = colors, cex = 0.5)
+mds <- plotMDS(sampleTable, plot = FALSE)
+plot(mds$x, mds$y, col = colors, pch = 19, cex = 1.5, xlab = "Dimension 1 (92%)", ylab = "Dimension 2 (6%)", main = "")
+legend("topleft", legend = colnames(sampleTable), col = colors, pch = 19, cex = 0.8, bty = "n")
+
+png(filename = "PlotMDS_d22vsd32vsd42.png", width = 140, height = 140, res = 300, units = "mm")
+plot(mds$x, mds$y, col = colors, pch = 19, cex = 1.5, xlab = "Dimension 1 (92%)", ylab = "Dimension 2 (6%)", main = "")
+dev.off()
+
+
+```
+
+

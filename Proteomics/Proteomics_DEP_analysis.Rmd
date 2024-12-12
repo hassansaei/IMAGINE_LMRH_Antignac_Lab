@@ -1,0 +1,39 @@
+---
+title: "Proteomics differentially expressed protein analysis in kidney organoids"
+output: html_document
+author: 'Hassan Saei'
+contact: 'hassan.saeiahan@gmail.com'
+date: "2024-12-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Global proteomics analysis of kidney organoids - Rachel Lennon's lab - Manchester 
+
+
+
+```{r loading libraries}
+
+library(tidyverse)
+library(limma)
+library(QFeatures)
+library(msqrob2)
+library(plotly)
+library(gridExtra)
+library(proteusLabelFree)
+library(dplyr)
+library(msqrob2gui)
+#launchMsqrob2App()
+
+```
+
+## Loading libraries
+
+
+```{r , }
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

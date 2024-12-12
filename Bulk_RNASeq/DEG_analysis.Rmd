@@ -23,7 +23,7 @@ We developed kidney organoids from male hiPSCs using Morizane et al. protocol ()
 ## Loading libraries
 
 ```{r loading-packages, echo=FALSE, results='hide'}
-rm(list=ls())
+#rm(list=ls())
 library(limma)
 library(edgeR)
 library(DESeq2)
@@ -38,6 +38,11 @@ library(RColorBrewer)
 library(ggrepel)
 library(ggplot2)
 library("readxl")
+library(data.table)
+library(UpSetR)
+library(ggrepel)
+library(pheatmap)
+library(colorRamp2)
 ```
 
 ## Converting ENSG IDs to gene symbol
@@ -136,28 +141,253 @@ write.table(common_genes, file = "Common_genes_early_vs_late.txt", row.names = F
 
 ```
 
-#
+# Prepare file to generate MDS plot
 
-```{r }
+```{r plot-MDS, fig.width=5, fig.height=5}
 
-# Create the DESeq object
-sampleTable <- read.table("0_NGS2024_7984/Data/DataCount.txt", header = T)
-
-# MDS plot
-sampleTable <- read.table("../0_NGS2024_7984/DataNorm/DataNormDESeq2.txt", header = T)
+sampleTable <- read.table("Listes_Res_MultiTests/DataNormDESeq2.txt", header = T)
 sampleTable <- sampleTable[,c(1:9)]
+
 group <- factor(c(rep("d22", 3), rep("d32", 3), rep("d42", 3)))
 colors <- c("darkred", "darkblue", "darkgreen")[group]
-limma::plotMDS(sampleTable, col = colors, cex = 0.5)
+
 mds <- plotMDS(sampleTable, plot = FALSE)
 plot(mds$x, mds$y, col = colors, pch = 19, cex = 1.5, xlab = "Dimension 1 (92%)", ylab = "Dimension 2 (6%)", main = "")
 legend("topleft", legend = colnames(sampleTable), col = colors, pch = 19, cex = 0.8, bty = "n")
 
-png(filename = "PlotMDS_d22vsd32vsd42.png", width = 140, height = 140, res = 300, units = "mm")
+```
+
+# Save MDS plot
+
+```{r save-MDS plot}
+
+png(filename = "PlotMDS.png", width = 140, height = 140, res = 300, units = "mm")
 plot(mds$x, mds$y, col = colors, pch = 19, cex = 1.5, xlab = "Dimension 1 (92%)", ylab = "Dimension 2 (6%)", main = "")
 dev.off()
+```
 
+# Visualization of the enrichment results
+
+```{r }
+# Enrichment
+enrich <- fread("Listes_Res_MultiTests/GO_All_Venn_(d32)_vs_(d22)_f1.5_(3360).txt", 
+                     header = TRUE, sep = "\t")
+
+enrich <- enrich[enrich$qvalue <= 0.05,]
+df_BP <- subset(enrich, ONTOLOGY == "BP")
+df_CC <- subset(enrich, ONTOLOGY == "CC")
+df_MF <- subset(enrich, ONTOLOGY == "MF")
+
+# Select the first three columns
+df_BP <- df_BP[1:3,]
+df_CC <- df_CC[1:3,]
+df_MF <- df_MF[1:3,]
+
+# Combine the dataframes back if needed
+df_combined <- rbind(df_BP, df_CC, df_MF)
+df_combined$log10_Adjusted <- -log10(df_combined$qvalue)
+
+p <- ggplot(df_combined, aes(x = log10_Adjusted, y = reorder(Description, log10_Adjusted), fill = ONTOLOGY)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("BP" = "blue3", "CC" = "coral", "MF" = "azure3")) +
+  labs(
+    title = "",
+    x = "-log10(q-value)",
+    y = "Enrichments",
+    fill = "Databases"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_text(size = 12, face = "bold", colour = "black"),
+    axis.text.x = element_text(size = 12, face = "bold", colour = "black"),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    plot.title = element_text(size = 16, face = "bold"),
+  )
+
+p
+```
+# Save Enrichemnt plot
+
+```{r save.png}
+
+png(filename = "Enrichment_d32vsd22.png", width = 200, height = 150, res = 300, units = "mm")
+plot(p)
+dev.off()
 
 ```
 
+
+# Visiulizing shared genes and proteins 
+
+```{r }
+
+DEG <- read.table("Listes_Res_MultiTests/(d42)_vs_(d32)_f1.2_(8892).txt", header = T, sep = "\t")
+DEG <- DEG[,c(1:3,5)]
+DEG <- DEG[,-1]
+DEG$log2FC <- log2(DEG$RatiosMoys_.d42._vs_.d32.)
+DEG$pval_DEseq2 <- as.numeric(gsub(",", ".", DEG$pval_DEseq2))
+DEG$pval_DEseq2 <- -log(DEG$pval_DEseq2)
+DEG <- DEG[!is.na(DEG$pval_DEseq2), ]
+DEG <- DEG[is.finite(DEG$pval_DEseq2), ]
+DEG <- DEG[,-1]
+colnames(DEG) <- c("SYMBOL", "Pvalue", "LogFC")
+
+DEG
+```
+# Upset plot for comapring results from RNA-seq and proteomics
+
+```{r Shared genes and proteins}
+
+process_gene_lists <- function(rna_file, proteomics_file) {
+  # Read RNAseq data
+  DEG <- rna_file
+
+  # Read proteomics data
+  pro <- fread(proteomics_file)
+
+  # Filter significant proteomics results
+  pro <- pro[pro$Significant == "+", ]
+
+  # Select required columns
+  pro <- pro[, c(2, 3, 7)]
+  colnames(pro) <- c("Pvalue", "LogFC", "SYMBOL")
+
+  # Reorder columns
+  pro <- pro[, c("SYMBOL", "Pvalue", "LogFC")]
+
+  # Convert Symbol columns to lists
+  DEG_genes <- DEG$SYMBOL
+  pro_genes <- pro$SYMBOL
+
+  # Check for duplicates
+  duplicated_DEG <- sum(duplicated(DEG_genes))
+  duplicated_pro <- sum(duplicated(pro_genes))
+
+  # Create a list for UpSet plot
+  gene_list <- list(
+    RNAseq = DEG_genes,
+    Proteomics = pro_genes
+  )
+
+  # Find common genes
+  common_genes <- intersect(gene_list$RNAseq, gene_list$Proteomics)
+
+  # Return results
+  return(list(
+    common_genes = common_genes,
+    length_common_genes = length(common_genes),
+    duplicated_DEG = duplicated_DEG,
+    duplicated_pro = duplicated_pro,
+    gene_list = gene_list,
+    pro = pro
+  ))
+}
+
+result <- process_gene_lists(DEG, "Listes_Res_MultiTests/Proteomics.perseus.d38_vs_d22_DEPs.txt")
+result2 <- process_gene_lists(DEG, "Listes_Res_MultiTests/Proteomics.perseus.d34_vs_d22_DEPs.txt")
+
+# Create the UpSet plot
+p <- upset(fromList(result[['gene_list']]), order.by = "freq", 
+      main.bar.color = "black", sets.bar.color = "gray", point.size = 4, line.size = 1, 
+      text.scale = c(1.5, 1.5, 1.5), keep.order = F, set_size.show = F)
+
+p
+```
+# Save upset plot 
+
+```{r save upset plot}
+
+png(filename = "Upset.d34_vs_d22.perseus.DEP.png", width = 150, height = 130 , units = "mm", res = 300)
+p
+dev.off()
+
+```
+
+# Generate volcano plot for proteomics results
+
+```{r Generate volcano plot for proteomics results}
+
+pro <- result[['pro']]
+pro <- pro %>%
+  mutate(
+    highlight = case_when(
+      Pvalue > 1 & LogFC > 0.1 ~ "Up",
+      Pvalue > 1 & LogFC < -0.1 ~ "Down",
+      TRUE ~ "Not_sig"
+    )
+  )
+
+color_map <- c(
+  "Up" = "darkred",
+  "Not_sig" = "azure4",
+  "Down" = "blue"
+)
+
+volcano <- ggplot(pro,
+                  aes(x = LogFC, y = Pvalue, colour= highlight)) +
+  geom_point(cex = 1.0, stroke = 0.6, color = "black") +
+  geom_point(aes(fill = highlight), cex = 1.0, stroke = 0.5) +
+  theme_minimal() +
+  labs(x="LogFC",
+       y="-Log10(p-value)") +
+  scale_color_manual(values=color_map) +
+  theme(legend.position="top", axis.line = element_line(color = "black"),
+        panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12),
+        axis.text = element_text(face = "bold", size = 10)) +
+  geom_hline(yintercept=1, linetype="dashed", color = "gray") +
+  geom_vline(xintercept=c(-0.1, 0.1), linetype="dashed", color = "gray")
+
+volcano
+
+```
+# Save volcano plot for d38 versus d22 comparison (proteomics)
+
+```{r }
+
+png(filename = "Volcano.d38_vs_d22.perseus.DEP.png", width = 100, height = 100, units = "mm", res = 300)
+plot(volcano)
+dev.off()
+
+```
+
+
+
+```{r heatmap for bulk-RNA-seq}
+
+sampleTable <- read.table("Listes_Res_MultiTests/DataNormDESeq2.txt", header = T)
+sampleTable <- sampleTable[,c(1:9)]
+sampleTable$GENEID <- rownames(sampleTable)
+sampleTable <- merge(sampleTable, ens2sym_entrez, by="GENEID")
+sampleTable <- sampleTable %>% 
+  distinct(SYMBOL, .keep_all = TRUE)
+rownames(sampleTable) <- sampleTable$SYMBOL
+sampleTable <- sampleTable[,-c(1)]
+sampleTable <- sampleTable[,-10]
+sampleTable$Gene.names <- rownames(sampleTable)
+sampleTable <- sampleTable[,c("Gene.names", "d22_R1", "d22_R2","d22_R3", "d32_R1", "d32_R2", "d32_R3", "d42_R1", "d42_R2","d42_R3")]
+
+sampleTable <- sampleTable[sampleTable$Gene.names %in% 
+                             c("COL4A1", "COL4A2", "COL4A3", "COL4A4", "COL4A5", "LAMA1", "LAMA5", "LAMB2"), ]
+
+sampleTable <- sampleTable[,-1]
+sampleTable <- t(apply(sampleTable,1, scale))
+colnames(sampleTable) <- c("d22_R1", "d22_R2", "d22_R3","d32_R1", "d32_R2", "d32_R3", "d42_R1", "d42_R2", "d42_R3")
+
+my_sample_col <- data.frame(condition = rep(c("d22", "d32", "d42"), c(3,3,3)))
+row.names(my_sample_col) <- colnames(sampleTable)
+
+pheatmap(sampleTable,
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete", cluster_cols=F,
+         main = "", annotation_col = my_sample_col, 
+         fontsize = 10, color = brewer.pal(n = 9, name = "Reds"))
+
+```
 

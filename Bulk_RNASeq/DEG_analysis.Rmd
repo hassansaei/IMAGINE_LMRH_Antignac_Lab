@@ -1,9 +1,11 @@
 ---
-title: "DEG_analysis"
-output: html_document
+title: "DEG_analysis - Bulk RNA-seq"
 author: "Hassan Saei"
-Contact: "hassan.saeiahan@gmail.com"
 date: "2024-12-09"
+output:
+  pdf_document: default
+  html_document: default
+Contact: hassan.saeiahan@gmail.com
 ---
 
 ```{r setup, include=FALSE}

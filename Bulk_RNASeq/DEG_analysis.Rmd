@@ -22,7 +22,8 @@ We developed kidney organoids from male hiPSCs using Morizane et al. protocol ()
 
 ## Loading libraries
 
-```{r loading-packages, echo=FALSE, results='hide'}
+```{r loading-packages, echo=TRUE, results='hide', message = FALSE, warning = FALSE}
+
 #rm(list=ls())
 library(limma)
 library(edgeR)
@@ -118,9 +119,9 @@ ggVennDiagram(list, label_alpha = 0, label_size = 3,
 # Save the plot in the .png format
 
 ```{r save venndiagram}
-png(filename = "Venn.png", width = 150, height = 100, res = 300, units = "mm")
-plot(p)
-dev.off()
+#png(filename = "Venn.png", width = 150, height = 100, res = 300, units = "mm")
+#plot(p)
+#dev.off()
 ```
 
 # Extract common DEGs between mid and early comparison
@@ -161,9 +162,9 @@ legend("topleft", legend = colnames(sampleTable), col = colors, pch = 19, cex = 
 
 ```{r save-MDS plot}
 
-png(filename = "PlotMDS.png", width = 140, height = 140, res = 300, units = "mm")
-plot(mds$x, mds$y, col = colors, pch = 19, cex = 1.5, xlab = "Dimension 1 (92%)", ylab = "Dimension 2 (6%)", main = "")
-dev.off()
+#png(filename = "PlotMDS.png", width = 140, height = 140, res = 300, units = "mm")
+#plot(mds$x, mds$y, col = colors, pch = 19, cex = 1.5, xlab = "Dimension 1 (92%)", ylab = "Dimension 2 (6%)", main = "")
+#dev.off()
 ```
 
 # Visualization of the enrichment results
@@ -187,7 +188,7 @@ df_MF <- df_MF[1:3,]
 df_combined <- rbind(df_BP, df_CC, df_MF)
 df_combined$log10_Adjusted <- -log10(df_combined$qvalue)
 
-p <- ggplot(df_combined, aes(x = log10_Adjusted, y = reorder(Description, log10_Adjusted), fill = ONTOLOGY)) +
+ggplot(df_combined, aes(x = log10_Adjusted, y = reorder(Description, log10_Adjusted), fill = ONTOLOGY)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = c("BP" = "blue3", "CC" = "coral", "MF" = "azure3")) +
   labs(
@@ -203,24 +204,23 @@ p <- ggplot(df_combined, aes(x = log10_Adjusted, y = reorder(Description, log10_
     axis.title.x = element_text(size = 14),
     axis.title.y = element_text(size = 14),
     plot.title = element_text(size = 16, face = "bold"),
-  )
+    )
 
-p
 ```
 # Save Enrichemnt plot
 
 ```{r save.png}
 
-png(filename = "Enrichment_d32vsd22.png", width = 200, height = 150, res = 300, units = "mm")
-plot(p)
-dev.off()
+#png(filename = "Enrichment_d32vsd22.png", width = 200, height = 150, res = 300, units = "mm")
+#plot(p)
+#dev.off()
 
 ```
 
 
 # Visiulizing shared genes and proteins 
 
-```{r }
+```{r Visiulizing shared genes and proteins}
 
 DEG <- read.table("Listes_Res_MultiTests/(d42)_vs_(d32)_f1.2_(8892).txt", header = T, sep = "\t")
 DEG <- DEG[,c(1:3,5)]
@@ -233,7 +233,7 @@ DEG <- DEG[is.finite(DEG$pval_DEseq2), ]
 DEG <- DEG[,-1]
 colnames(DEG) <- c("SYMBOL", "Pvalue", "LogFC")
 
-DEG
+#DEG
 ```
 # Upset plot for comapring results from RNA-seq and proteomics
 
@@ -288,19 +288,18 @@ result <- process_gene_lists(DEG, "Listes_Res_MultiTests/Proteomics.perseus.d38_
 result2 <- process_gene_lists(DEG, "Listes_Res_MultiTests/Proteomics.perseus.d34_vs_d22_DEPs.txt")
 
 # Create the UpSet plot
-p <- upset(fromList(result[['gene_list']]), order.by = "freq", 
+upset(fromList(result[['gene_list']]), order.by = "freq", 
       main.bar.color = "black", sets.bar.color = "gray", point.size = 4, line.size = 1, 
       text.scale = c(1.5, 1.5, 1.5), keep.order = F, set_size.show = F)
 
-p
 ```
 # Save upset plot 
 
 ```{r save upset plot}
 
-png(filename = "Upset.d34_vs_d22.perseus.DEP.png", width = 150, height = 130 , units = "mm", res = 300)
-p
-dev.off()
+#png(filename = "Upset.d34_vs_d22.perseus.DEP.png", width = 150, height = 130 , units = "mm", res = 300)
+#p
+#dev.off()
 
 ```
 
@@ -343,20 +342,20 @@ volcano <- ggplot(pro,
   geom_hline(yintercept=1, linetype="dashed", color = "gray") +
   geom_vline(xintercept=c(-0.1, 0.1), linetype="dashed", color = "gray")
 
-volcano
+plot(volcano)
 
 ```
 # Save volcano plot for d38 versus d22 comparison (proteomics)
 
 ```{r }
 
-png(filename = "Volcano.d38_vs_d22.perseus.DEP.png", width = 100, height = 100, units = "mm", res = 300)
-plot(volcano)
-dev.off()
+#png(filename = "Volcano.d38_vs_d22.perseus.DEP.png", width = 100, height = 100, units = "mm", res = 300)
+#plot(volcano)
+#dev.off()
 
 ```
 
-
+# Heatmap for GBM genes in bulk-RNA-seq dataset
 
 ```{r heatmap for bulk-RNA-seq}
 

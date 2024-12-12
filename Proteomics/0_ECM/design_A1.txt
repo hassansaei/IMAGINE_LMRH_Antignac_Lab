@@ -1,0 +1,10 @@
+run	condition
+Intensity.2G9_d37_ECM_R1	d37
+Intensity.2G9_d37_ECM_R2	d37
+Intensity.2G9_d37_ECM_R3	d37
+Intensity.WT_d23_ECM_R2	d23
+Intensity.WT_d23_ECM_R3	d23
+Intensity.WT_d23_ECM_R3_r	d23
+Intensity.WT_d34_ECM_R1	d34
+Intensity.WT_d34_ECM_R2	d34
+Intensity.WT_d34_ECM_R3	d34

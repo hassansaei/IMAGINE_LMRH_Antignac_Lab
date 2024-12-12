@@ -38,7 +38,6 @@ library(EnhancedVolcano)
 library(tidyverse)
 library(clusterProfiler)
 library(RColorBrewer)
-library(ggrepel)
 library(ggplot2)
 library("readxl")
 library(data.table)
@@ -46,6 +45,7 @@ library(UpSetR)
 library(ggrepel)
 library(pheatmap)
 library(colorRamp2)
+library("ggVennDiagram")
 ```
 
 ## Converting ENSG IDs to gene symbol
@@ -98,7 +98,6 @@ DEG_late <- process_dataframe(DEG_late, NABA)
 # Venndiagram for shared matrisom endcoding genes
 
 ```{r venndiagram for matrix genes, fig.width=3, fig.height=1.5}
-library("ggVennDiagram")
 
 matrix_mid <- DEG_mid$Category == "Matrix"
 matrix_late <- DEG_late$Category == "Matrix"
